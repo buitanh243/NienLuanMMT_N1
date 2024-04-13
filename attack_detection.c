@@ -1,5 +1,4 @@
 #include "attack_detection.h"
-
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>

@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <netinet/ip_icmp.h>
 
+
+
 // Log packet details
 void LogPacket(const char *protocol, const char *info) {
   printf("%s Packet: %s\n", protocol, info);
@@ -30,7 +32,7 @@ void AnalyzeUdpPacket(const struct pcap_pkthdr *header, const unsigned char *pac
   AnalyzeUdpAttack(header, packet); // Function for attack analysis
 }
 
-void AnalyzeIcmpPacket(const struct pcap_pkthdr *header, const u_char *packet) {
+void AnalyzeIcmpPacket(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct icmp *icmp_header = (struct icmp *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
