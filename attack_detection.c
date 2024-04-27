@@ -89,14 +89,14 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
 }
 
 // Function to analyze UDP packets for specific attack patterns
-void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
+void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct udphdr *udp_header = (struct udphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
   // Check for UDP Flood attack pattern
   // You can define your threshold for UDP packet count within a certain time window
   // and compare it with the actual count to detect a potential UDP flood attack
-  if (header->caplen >= 100) {
+  if (header->caplen >= 1000) {
     AlertAttack("Possible UDP Flood attack detected");
   }
 
@@ -107,7 +107,7 @@ void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct icmp *icmp_header = (struct icmp *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
-  // Thực hiện kiểm tra các mẫu tấn công dựa trên giao thức ICMP ở đây
-  
+ if (icmp_header->icmp_type == ICMP_ECHO) {
+    AlertAttack("Possible ICMP Echo Request (ping) Flood attack detected");
+  }
 }
-
