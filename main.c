@@ -30,9 +30,6 @@ int main(int argc, char *argv[]) {
   // Start capturing packets
   StartCapture(handle, PacketCallback);
   
-
-  printf("Hệ thống IDS đang chạy...\n");
-
   pcap_breakloop(handle);
   pcap_close(handle);
   return 0;
