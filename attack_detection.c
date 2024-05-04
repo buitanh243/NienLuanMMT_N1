@@ -89,58 +89,76 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
   // Add more TCP attack analysis as needed
 }
 
-
 void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct udphdr *udp_header = (struct udphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
-  // Tạo một cấu trúc để lưu trữ thông tin về nguồn gốc của gói tin UDP
-  struct SourceEntry *current = sources_acttack;
-  struct SourceEntry *prev = NULL;
-  in_addr_t source_ip = ip_header->ip_src.s_addr;
+  // UDP Flood detection
+  // Đếm số lượng gói tin UDP từ một nguồn trong một khoảng thời gian
+  static const int UDP_FLOOD_THRESHOLD = 1000; // Định nghĩa ngưỡng cho việc xác định tấn công UDP Flood
+  static const int UDP_FLOOD_TIME_WINDOW = 10; // Định nghĩa cửa sổ thời gian để đếm số gói tin UDP
 
+  struct SourceEntry *current = sources_acttack;
   time_t now = time(NULL);
 
-  // Lặp qua danh sách nguồn gốc đã biết
   while (current != NULL) {
-    // Nếu tìm thấy nguồn gốc của gói tin UDP trong danh sách
-    if (current->source_ip == source_ip) {
-      // Nếu gói tin được gửi trong khoảng thời gian quy định
-      if (difftime(now, current->last_time) <= TIME_WINDOW) {
-        current->syn_count++; // Tăng số lượng gói tin từ nguồn gốc này
-        // Nếu số lượng gói tin vượt quá ngưỡng
-        if (current->syn_count >= SCAN_THRESHOLD) {
-          AlertAttack("Possible UDP Flood attack detected"); // Cảnh báo về tấn công UDP Flood
-          break; // Dừng việc kiểm tra vì đã phát hiện tấn công
-        }
+    if (current->source_ip == ip_header->ip_src.s_addr) {
+      if (current->last_time < now - UDP_FLOOD_TIME_WINDOW) {
+        current->syn_count = 1; // Reset count if outside the time window
       } else {
-        // Nếu gói tin được gửi sau khoảng thời gian TIME_WINDOW, đặt lại số lượng gói tin
-        current->syn_count = 1;
-        current->last_time = now;
+        current->syn_count++;
+        if (current->syn_count >= UDP_FLOOD_THRESHOLD) {
+          AlertAttack("Possible UDP Flood attack detected");
+        }
       }
-      break; // Dừng việc duyệt danh sách vì đã xử lý xong
+      current->last_time = now;
+      return;
     }
-    prev = current;
     current = current->next;
   }
 
-  // Nếu không tìm thấy nguồn gốc của gói tin UDP trong danh sách, thêm mới vào danh sách
-  if (current == NULL) {
-    struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
-    if (new_source != NULL) {
-      new_source->source_ip = source_ip;
-      new_source->syn_count = 1;
-      new_source->last_time = now;
-      new_source->next = NULL;
-
-      // Nếu danh sách trống, gán nguồn gốc mới làm đầu danh sách
-      if (prev == NULL) {
-        sources_acttack = new_source;
-      } else {
-        // Nếu danh sách không trống, thêm nguồn gốc mới vào cuối danh sách
-        prev->next = new_source;
-      }
-    }
-  }
+  struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
+  new_source->source_ip = ip_header->ip_src.s_addr;
+  new_source->syn_count = 1;
+  new_source->last_time = now;
+  new_source->next = sources_acttack;
+  sources_acttack = new_source;
 }
+
+void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
+  struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
+  struct icmp *icmp_header = (struct icmp *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
+
+  // ICMP Flood detection
+  // Đếm số lượng gói tin ICMP từ một nguồn trong một khoảng thời gian
+  static const int ICMP_FLOOD_THRESHOLD = 100; // Định nghĩa ngưỡng cho việc xác định tấn công ICMP Flood
+  static const int ICMP_FLOOD_TIME_WINDOW = 10; // Định nghĩa cửa sổ thời gian để đếm số gói tin ICMP
+
+  struct SourceEntry *current = sources_acttack;
+  time_t now = time(NULL);
+
+  while (current != NULL) {
+    if (current->source_ip == ip_header->ip_src.s_addr) {
+      if (current->last_time < now - ICMP_FLOOD_TIME_WINDOW) {
+        current->syn_count = 1; // Reset count if outside the time window
+      } else {
+        current->syn_count++;
+        if (current->syn_count >= ICMP_FLOOD_THRESHOLD) {
+          AlertAttack("Possible ICMP Flood attack detected");
+        }
+      }
+      current->last_time = now;
+      return;
+    }
+    current = current->next;
+  }
+
+  struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
+  new_source->source_ip = ip_header->ip_src.s_addr;
+  new_source->syn_count = 1;
+  new_source->last_time = now;
+  new_source->next = sources_acttack;
+  sources_acttack = new_source;
+}
+
 
