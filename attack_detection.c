@@ -9,8 +9,9 @@
 #include <netinet/ip_icmp.h>
 
 
-#define SCAN_THRESHOLD 10 // Threshold for SYN packets to detect port scanning
+#define SCAN_THRESHOLD 100 // Threshold for SYN packets to detect port scanning
 #define TIME_WINDOW 60   // Time window in seconds to consider for port scanning
+
 
 // Structure to keep track of source IPs for port scanning detection
 struct SourceEntry {
@@ -88,21 +89,58 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
   // Add more TCP attack analysis as needed
 }
 
-// Function to analyze UDP packets for specific attack patterns
+
 void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct udphdr *udp_header = (struct udphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
-  // if (header->caplen >= 1000) {
-  //   AlertAttack("Possible UDP Flood attack detected"); // Can sua de chi bat UDP
-  // }
+  // Tạo một cấu trúc để lưu trữ thông tin về nguồn gốc của gói tin UDP
+  struct SourceEntry *current = sources_acttack;
+  struct SourceEntry *prev = NULL;
+  in_addr_t source_ip = ip_header->ip_src.s_addr;
+
+  time_t now = time(NULL);
+
+  // Lặp qua danh sách nguồn gốc đã biết
+  while (current != NULL) {
+    // Nếu tìm thấy nguồn gốc của gói tin UDP trong danh sách
+    if (current->source_ip == source_ip) {
+      // Nếu gói tin được gửi trong khoảng thời gian quy định
+      if (difftime(now, current->last_time) <= TIME_WINDOW) {
+        current->syn_count++; // Tăng số lượng gói tin từ nguồn gốc này
+        // Nếu số lượng gói tin vượt quá ngưỡng
+        if (current->syn_count >= SCAN_THRESHOLD) {
+          AlertAttack("Possible UDP Flood attack detected"); // Cảnh báo về tấn công UDP Flood
+          break; // Dừng việc kiểm tra vì đã phát hiện tấn công
+        }
+      } else {
+        // Nếu gói tin được gửi sau khoảng thời gian TIME_WINDOW, đặt lại số lượng gói tin
+        current->syn_count = 1;
+        current->last_time = now;
+      }
+      break; // Dừng việc duyệt danh sách vì đã xử lý xong
+    }
+    prev = current;
+    current = current->next;
+  }
+
+  // Nếu không tìm thấy nguồn gốc của gói tin UDP trong danh sách, thêm mới vào danh sách
+  if (current == NULL) {
+    struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
+    if (new_source != NULL) {
+      new_source->source_ip = source_ip;
+      new_source->syn_count = 1;
+      new_source->last_time = now;
+      new_source->next = NULL;
+
+      // Nếu danh sách trống, gán nguồn gốc mới làm đầu danh sách
+      if (prev == NULL) {
+        sources_acttack = new_source;
+      } else {
+        // Nếu danh sách không trống, thêm nguồn gốc mới vào cuối danh sách
+        prev->next = new_source;
+      }
+    }
+  }
 }
 
-void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
-  struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
-  struct icmp *icmp_header = (struct icmp *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
-
-//  if (icmp_header->icmp_type == ICMP_ECHO) {
-//     AlertAttack("Possible ICMP Echo Request (ping) Flood attack detected");
-//   } Khong thong bao
-}
