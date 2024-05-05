@@ -2,13 +2,6 @@
 #include "packet_analysis.h"
 #include <stdio.h>
 
-
-
-// Callback function to analyze packets
-// void PacketCallback(const struct pcap_pkthdr *header, const u_char *packet) {
-//   AnalyzePacket(header, packet);
-// }
-
 void PacketCallback(unsigned char *user, const struct pcap_pkthdr *header, const unsigned char *packet) {
   AnalyzePacket(header, packet);
 }
