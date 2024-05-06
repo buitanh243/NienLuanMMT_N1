@@ -40,8 +40,7 @@ void AnalyzeIcmpPacket(const struct pcap_pkthdr *header, const unsigned char *pa
   char info[100];
   snprintf(info, sizeof(info), "Type: %d, Code: %d", icmp_header->icmp_type, icmp_header->icmp_code);
   LogPacket("ICMP", info);
-  //AnalyzeIcmpAttack(header, packet)
-
+  AnalyzeIcmpAttack(header, packet);
 }
 
 void AnalyzePacket(const struct pcap_pkthdr *header, const unsigned char *packet) {
