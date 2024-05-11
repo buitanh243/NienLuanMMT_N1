@@ -10,7 +10,7 @@
 
 
 #define SCAN_THRESHOLD 100 // Threshold for SYN packets to detect port scanning
-#define TIME_WINDOW 60   // Time window in seconds to consider for port scanning
+#define TIME_WINDOW 10   // Time window in seconds to consider for port scanning
 
 
 // Structure to keep track of source IPs for port scanning detection
@@ -21,7 +21,7 @@ struct SourceEntry {
   struct SourceEntry *next; // Next entry in the list
 };
 
-struct SourceEntry *sources_acttack=NULL;// Linked list head for source entries
+struct SourceEntry *sources_acttack=NULL;
 
 // Function to log alerts to a file
 void LogAlertToFile(const char *attack_name) {
@@ -37,7 +37,7 @@ void LogAlertToFile(const char *attack_name) {
 // Function to alert an attack
 void AlertAttack(const char *attack_name) {
   printf("ALERT: %s\n", attack_name);
-  LogAlertToFile(attack_name); // Log the alert to a file
+  LogAlertToFile(attack_name); 
 }
 
 // Function to analyze TCP packets for various attack patterns
@@ -46,7 +46,8 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
   struct tcphdr *tcp_header = (struct tcphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
   // Check for SYN-Flood attack pattern
-  if (tcp_header->syn && !tcp_header->ack) {
+  
+  if (tcp_header->syn >= SCAN_THRESHOLD && !tcp_header->ack) {
     AlertAttack("Possible SYN-Flood attack detected");
   }
 
@@ -86,28 +87,52 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
     sources_acttack = new_source;
   }
 
-  // Add more TCP attack analysis as needed
-}
+// New code to detect SSH Brute Force attack
+  if (tcp_header->dest == htons(22)) { // Check if the destination port is SSH (port 22)
+    struct SourceEntry *current = sources_acttack;
+    time_t now = time(NULL);
+
+    while (current != NULL) {
+      if (current->source_ip == ip_header->ip_src.s_addr) {
+        if (current->last_time < now - TIME_WINDOW) {
+          current->syn_count = 1; // Reset count if outside the time window
+        } else {
+          current->syn_count++;
+          if (current->syn_count >= 4) {
+            AlertAttack("Possible SSH Brute Force attack detected");
+          }
+        }
+        current->last_time = now;
+        return;
+      }
+      current = current->next;
+    }
+
+    struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
+    new_source->source_ip = ip_header->ip_src.s_addr;
+    new_source->syn_count = 1;
+    new_source->last_time = now;
+    new_source->next = sources_acttack;
+    sources_acttack = new_source;
+  }
+  }
 
 void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct udphdr *udp_header = (struct udphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
   // UDP Flood detection
-  // Đếm số lượng gói tin UDP từ một nguồn trong một khoảng thời gian
-  static const int UDP_FLOOD_THRESHOLD = 1000; // Định nghĩa ngưỡng cho việc xác định tấn công UDP Flood
-  static const int UDP_FLOOD_TIME_WINDOW = 10; // Định nghĩa cửa sổ thời gian để đếm số gói tin UDP
 
   struct SourceEntry *current = sources_acttack;
   time_t now = time(NULL);
 
   while (current != NULL) {
     if (current->source_ip == ip_header->ip_src.s_addr) {
-      if (current->last_time < now - UDP_FLOOD_TIME_WINDOW) {
-        current->syn_count = 1; // Reset count if outside the time window
+      if (current->last_time < now - TIME_WINDOW) {
+        current->syn_count = 1; 
       } else {
         current->syn_count++;
-        if (current->syn_count >= UDP_FLOOD_THRESHOLD) {
+        if (current->syn_count >= SCAN_THRESHOLD) {
           AlertAttack("Possible UDP Flood attack detected");
         }
       }
@@ -123,27 +148,35 @@ void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
   new_source->last_time = now;
   new_source->next = sources_acttack;
   sources_acttack = new_source;
+
+   
 }
+
+  
 
 void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct icmp *icmp_header = (struct icmp *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
 
-  // ICMP Flood detection
-  // Đếm số lượng gói tin ICMP từ một nguồn trong một khoảng thời gian
-  static const int ICMP_FLOOD_THRESHOLD = 100; // Định nghĩa ngưỡng cho việc xác định tấn công ICMP Flood
-  static const int ICMP_FLOOD_TIME_WINDOW = 10; // Định nghĩa cửa sổ thời gian để đếm số gói tin ICMP
+  
+  // Kiểm tra nếu ICMP packet là ICMP Fragmentation Attack
+  if (ip_header->ip_off & htons(IP_MF) || ip_header->ip_off & htons(IPOPT_OFFSET)) {
+    AlertAttack("Possible ICMP Fragmentation Attack detected");
+  }
+  else {
 
+  
+  // ICMP Flood detection
   struct SourceEntry *current = sources_acttack;
   time_t now = time(NULL);
 
   while (current != NULL) {
     if (current->source_ip == ip_header->ip_src.s_addr) {
-      if (current->last_time < now - ICMP_FLOOD_TIME_WINDOW) {
+      if (current->last_time < now - TIME_WINDOW) {
         current->syn_count = 1; // Reset count if outside the time window
       } else {
         current->syn_count++;
-        if (current->syn_count >= ICMP_FLOOD_THRESHOLD) {
+        if (current->syn_count >= SCAN_THRESHOLD) {
           AlertAttack("Possible ICMP Flood attack detected");
         }
       }
@@ -159,6 +192,16 @@ void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
   new_source->last_time = now;
   new_source->next = sources_acttack;
   sources_acttack = new_source;
+  }
+
+  // Detect Ping of Death attack
+  // if (icmp_header->icmp_type == ICMP_ECHO) { // If ICMP type is Echo (Ping) request
+  //   uint16_t icmp_length = ntohs(ip_header->ip_len) - sizeof(struct ip);
+    // if (icmp_length > 65000) {
+    //   AlertAttack("Possible Ping of Death attack detected");
+    // }
+  //}
+
 }
 
 
