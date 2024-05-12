@@ -13,7 +13,6 @@
 #define TIME_WINDOW 10   // Time window in seconds to consider for port scanning
 
 
-// Structure to keep track of source IPs for port scanning detection
 struct SourceEntry {
   in_addr_t source_ip; // Source IP address
   int syn_count;       // Count of SYN packets
@@ -34,13 +33,11 @@ void LogAlertToFile(const char *attack_name) {
   fclose(file);
 }
 
-// Function to alert an attack
 void AlertAttack(const char *attack_name) {
   printf("ALERT: %s\n", attack_name);
   LogAlertToFile(attack_name); 
 }
 
-// Function to analyze TCP packets for various attack patterns
 void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
   struct tcphdr *tcp_header = (struct tcphdr *)(packet + sizeof(struct ethhdr) + ip_header->ip_hl * 4);
@@ -61,11 +58,10 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
     struct SourceEntry *current = sources_acttack;
     time_t now = time(NULL);
 
-    // Iterate through linked list of sources
     while (current != NULL) {
       if (current->source_ip == ip_header->ip_src.s_addr) {
         if (current->last_time < now - TIME_WINDOW) {
-          current->syn_count = 1; // Reset count if outside the time window
+          current->syn_count = 1; 
         } else {
           current->syn_count++;
           if (current->syn_count >= SCAN_THRESHOLD) {
@@ -78,7 +74,6 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
       current = current->next;
     }
 
-    // Add a new source entry if not found
     struct SourceEntry *new_source = malloc(sizeof(struct SourceEntry));
     new_source->source_ip = ip_header->ip_src.s_addr;
     new_source->syn_count = 1;
@@ -88,14 +83,14 @@ void AnalyzeTcpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
   }
 
 // New code to detect SSH Brute Force attack
-  if (tcp_header->dest == htons(22)) { // Check if the destination port is SSH (port 22)
+  if (tcp_header->dest == htons(22)) { 
     struct SourceEntry *current = sources_acttack;
     time_t now = time(NULL);
 
     while (current != NULL) {
       if (current->source_ip == ip_header->ip_src.s_addr) {
         if (current->last_time < now - TIME_WINDOW) {
-          current->syn_count = 1; // Reset count if outside the time window
+          current->syn_count = 1; 
         } else {
           current->syn_count++;
           if (current->syn_count >= 4) {
@@ -152,7 +147,6 @@ void AnalyzeUdpAttack(const struct pcap_pkthdr *header, const unsigned char *pac
    
 }
 
-  
 
 void AnalyzeIcmpAttack(const struct pcap_pkthdr *header, const u_char *packet) {
   struct ip *ip_header = (struct ip *)(packet + sizeof(struct ethhdr));
